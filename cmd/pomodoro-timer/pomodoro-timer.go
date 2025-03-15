@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"image"
 	"image/color"
+	"io"
 	"io/ioutil"
 	"math"
 	"os"
@@ -16,14 +17,15 @@ import (
 	"time"
 
 	"github.com/Kodeworks/golang-image-ico"
+	"github.com/ebitengine/oto/v3"
 	"github.com/getlantern/systray"
-	"github.com/hajimehoshi/oto"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
 )
 
 var (
+	context       *oto.Context
 	pomodoroCount int           // Tracks the number of completed Pomodoro sessions
 	isRunning     bool          // Indicates if the timer is currently running
 	isInPomodoro  bool          // Indicates if the current session is a Pomodoro
@@ -42,42 +44,10 @@ var (
 // main is the entry point of the application.
 func main() {
 	initResources()
+	initAudio()
 	stopCh = make(chan struct{})
 	loadSettings()
 	systray.Run(onReady, nil)
-}
-
-// playTickSound plays a short beep sound.
-func playTickSound() {
-	c, err := oto.NewContext(44100, 1, 2, 8192)
-	if err != nil {
-		fmt.Println("Error initializing audio context:", err)
-		return
-	}
-	defer c.Close()
-
-	freq := 1000.0 // Frequency of the sound in Hz
-	duration := 100 * time.Millisecond
-	sampleRate := 44100
-	amplitude := 0.3
-
-	p := c.NewPlayer()
-	defer p.Close()
-
-	samples := int(duration.Seconds() * float64(sampleRate))
-	buf := make([]byte, samples*2) // 16-bit samples
-
-	for i := 0; i < samples; i++ {
-		t := float64(i) / float64(sampleRate)
-		v := amplitude * math.Sin(2*math.Pi*freq*t)
-
-		// Convert to 16-bit PCM
-		s := int16(v * 32767)
-		buf[i*2] = byte(s)
-		buf[i*2+1] = byte(s >> 8)
-	}
-
-	p.Write(buf)
 }
 
 // TimerSettings stores the durations for Pomodoro, short break, and long break.
@@ -111,6 +81,125 @@ func initResources() {
 	if err != nil {
 		fmt.Println("Error creating font face:", err)
 		return
+	}
+}
+
+// initAudio initializes the audio context.
+func initAudio() error {
+	op := &oto.NewContextOptions{
+		SampleRate:   44100, // Sample rate
+		ChannelCount: 1,     // Mono sound
+		Format:       oto.FormatSignedInt16LE,
+	}
+
+	var err error
+	var ready chan struct{}
+	context, ready, err = oto.NewContext(op)
+	if err != nil {
+		return err
+	}
+
+	// Wait for the context to be ready
+	<-ready
+	return nil
+}
+
+// playTickSound plays a short beep sound.
+func playTickSound() {
+	if context == nil {
+		fmt.Println("Audio context not initialized")
+		return
+	}
+
+	freq := 440.0 // Frequency of the sound in Hz (A4 note)
+	duration := 200 * time.Millisecond
+	amplitude := 0.3 // Amplitude of the sound
+
+	// Create a sine wave for the sound
+	sineWave := NewSineWave(freq, duration, 1, oto.FormatSignedInt16LE, amplitude)
+
+	// Create a new player for the sound
+	player := context.NewPlayer(sineWave)
+	player.Play()
+
+	// Wait for the sound to finish playing
+	time.Sleep(duration)
+	player.Close() // Close the player after the sound is done
+}
+
+// NewSineWave creates a sine wave for the given frequency, duration, and format.
+func NewSineWave(freq float64, duration time.Duration, channelCount int, format oto.Format, amplitude float64) *SineWave {
+	sampleRate := 44100 // Sample rate
+	length := int64(float64(sampleRate) * float64(duration) / float64(time.Second))
+	return &SineWave{
+		freq:         freq,
+		length:       length,
+		channelCount: channelCount,
+		format:       format,
+		amplitude:    amplitude,
+		sampleRate:   sampleRate,
+	}
+}
+
+// SineWave implements io.Reader to generate a sine wave.
+type SineWave struct {
+	freq         float64
+	length       int64
+	pos          int64
+	channelCount int
+	format       oto.Format
+	amplitude    float64
+	sampleRate   int
+}
+
+// Read generates the sine wave data.
+func (s *SineWave) Read(buf []byte) (int, error) {
+	if s.pos >= s.length {
+		return 0, io.EOF
+	}
+
+	eof := false
+	if s.pos+int64(len(buf)) > s.length {
+		buf = buf[:s.length-s.pos]
+		eof = true
+	}
+
+	length := float64(s.sampleRate) / s.freq
+	num := formatByteLength(s.format) * s.channelCount
+	p := s.pos / int64(num)
+
+	switch s.format {
+	case oto.FormatSignedInt16LE:
+		for i := 0; i < len(buf)/num; i++ {
+			const max = 32767
+			b := int16(math.Sin(2*math.Pi*float64(p)/length) * s.amplitude * max)
+			for ch := 0; ch < s.channelCount; ch++ {
+				buf[num*i+2*ch] = byte(b)
+				buf[num*i+1+2*ch] = byte(b >> 8)
+			}
+			p++
+		}
+	}
+
+	s.pos += int64(len(buf))
+
+	if eof {
+		return len(buf), io.EOF
+	}
+	return len(buf), nil
+}
+
+// formatByteLength returns the byte length of the given format.
+func formatByteLength(format oto.Format) int {
+	switch format {
+	case oto.FormatFloat32LE:
+		return 4
+	case oto.FormatUnsignedInt8:
+		return 1
+	case oto.FormatSignedInt16LE:
+		return 2
+	default:
+		panic(fmt.Sprintf("unexpected format: %d", format))
 	}
 }
 
@@ -273,8 +362,12 @@ func startTimer(duration time.Duration) {
 						if pomodoroCount > 4 {
 							pomodoroCount = 1
 						}
+						systray.SetTooltip("Finished pomodoro")
+					} else {
+						systray.SetTooltip("Finished break")
 					}
 					systray.SetIcon(generateIconWithDots("0", pomodoroCount))
+					playTickSound()
 					mu.Unlock()
 					return
 				}
