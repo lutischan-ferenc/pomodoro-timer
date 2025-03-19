@@ -33,8 +33,9 @@ var (
 	stopCh        chan struct{} // Channel to stop the timer
 	mu            sync.Mutex    // Mutex for thread-safe operations
 
-	ticker   *time.Ticker
-	settings TimerSettings // Stores Pomodoro timer settings
+	ticker         *time.Ticker
+	oldDisplayText string
+	settings       TimerSettings // Stores Pomodoro timer settings
 
 	mPomodoro *systray.MenuItem // Menu item for starting a Pomodoro session
 	mBreak    *systray.MenuItem // Menu item for starting a break
@@ -414,7 +415,10 @@ func startTimer(duration time.Duration) {
 				} else {
 					displayText = fmt.Sprintf("%d", int(remainingTime.Minutes()))
 				}
-				systray.SetIcon(generateIconWithDots(displayText, pomodoroCount))
+				if displayText != oldDisplayText {
+					systray.SetIcon(generateIconWithDots(displayText, pomodoroCount))
+				}
+				oldDisplayText = displayText
 				systray.SetTooltip(fmt.Sprintf("%02d:%02d", int(remainingTime.Minutes()), int(remainingTime.Seconds())%60))
 				mu.Unlock()
 			case <-stopCh:
