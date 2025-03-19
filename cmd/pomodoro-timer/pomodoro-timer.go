@@ -18,7 +18,7 @@ import (
 
 	"github.com/Kodeworks/golang-image-ico"
 	"github.com/ebitengine/oto/v3"
-	"github.com/energye/systray"
+	"github.com/lutischan-ferenc/systray"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
@@ -384,6 +384,7 @@ func startTimer(duration time.Duration) {
 
 	go func() {
 		ticker = time.NewTicker(time.Second)
+		defer ticker.Stop()
 
 		for remainingTime > 0 {
 			select {
