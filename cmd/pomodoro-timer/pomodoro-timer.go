@@ -16,12 +16,12 @@ import (
 	"sync"
 	"time"
 
-	"github.com/Kodeworks/golang-image-ico"
 	"github.com/ebitengine/oto/v3"
 	"github.com/lutischan-ferenc/systray"
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
+	"image/png"
 )
 
 var (
@@ -298,14 +298,14 @@ func openSettingsEditor() {
 func onReady() {
 	systray.SetTitle("Pomodoro Timer")
 	systray.SetTooltip("Click to start Pomodoro")
-	systray.SetIcon(generateIconWithDots("▶", pomodoroCount))
+	systray.SetIconFromMemory(generateIconWithDots("▶", pomodoroCount))
 
 	// Handle direct tray icon clicks
 	systray.SetOnClick(func(menu systray.IMenu) {
 		handleTrayClick()
 	})
 
-	mWeb := systray.AddMenuItem("Pomodoro Timer v1.1", "Open the website in browser")
+	mWeb := systray.AddMenuItem("Pomodoro Timer v1.2.0", "Open the website in browser")
 	mWeb.Click(func() {
 		openBrowser("https://github.com/lutischan-ferenc/pomodoro-timer")
 	})
@@ -342,7 +342,7 @@ func handleTrayClick() {
 		close(stopCh)
 		stopCh = make(chan struct{})
 		isRunning = false
-		systray.SetIcon(generateIconWithDots("▶", pomodoroCount))
+		systray.SetIconFromMemory(generateIconWithDots("▶", pomodoroCount))
 		if isInPomodoro {
 			systray.SetTooltip("Pomodoro stopped - Click to start Break")
 		} else {
@@ -402,7 +402,7 @@ func startTimer(duration time.Duration) {
 					} else {
 						systray.SetTooltip("Finished break - Click to start pomodoro")
 					}
-					systray.SetIcon(generateIconWithDots("▶", pomodoroCount))
+					systray.SetIconFromMemory(generateIconWithDots("▶", pomodoroCount))
 					playTickSound()
 					mu.Unlock()
 					return
@@ -417,9 +417,9 @@ func startTimer(duration time.Duration) {
 					displayText = fmt.Sprintf("%d", int(remainingTime.Minutes()))
 				}
 				if displayText != oldDisplayText {
-					systray.SetIcon(generateIconWithDots(displayText, pomodoroCount))
+					systray.SetIconFromMemory(generateIconWithDots(displayText, pomodoroCount))
+					oldDisplayText = displayText
 				}
-				oldDisplayText = displayText
 				systray.SetTooltip(fmt.Sprintf("%02d:%02d", int(remainingTime.Minutes()), int(remainingTime.Seconds())%60))
 				mu.Unlock()
 			case <-stopCh:
@@ -464,13 +464,13 @@ func generateIconWithDots(text string, dotCount int) []byte {
 		drawCircle(img, dotX, dotY, dotRadius, dotColor)
 	}
 
-	var buf bytes.Buffer
-	err := ico.Encode(&buf, img)
+	var pngBuf bytes.Buffer
+	err := png.Encode(&pngBuf, img)
 	if err != nil {
 		return []byte{0x00}
 	}
 
-	return buf.Bytes()
+	return pngBuf.Bytes()
 }
 
 // drawCircle draws a circle on the image.
