@@ -21,6 +21,7 @@ import (
 	"golang.org/x/image/font"
 	"golang.org/x/image/font/opentype"
 	"golang.org/x/image/math/fixed"
+	"golang.org/x/sys/windows/registry"
 	"image/png"
 )
 
@@ -37,10 +38,11 @@ var (
 	oldDisplayText string
 	settings       TimerSettings // Stores Pomodoro timer settings
 
-	mPomodoro *systray.MenuItem // Menu item for starting a Pomodoro session
-	mBreak    *systray.MenuItem // Menu item for starting a break
-	baseImage *image.RGBA       // Base image for the system tray icon
-	fontFace  font.Face         // Font face for rendering text on the icon
+	mPomodoro  *systray.MenuItem // Menu item for starting a Pomodoro session
+	mBreak     *systray.MenuItem // Menu item for starting a break
+	mAutoStart *systray.MenuItem
+	baseImage  *image.RGBA // Base image for the system tray icon
+	fontFace   font.Face   // Font face for rendering text on the icon
 )
 
 // main is the entry point of the application.
@@ -305,7 +307,7 @@ func onReady() {
 		handleTrayClick()
 	})
 
-	mWeb := systray.AddMenuItem("Pomodoro Timer v1.2.0", "Open the website in browser")
+	mWeb := systray.AddMenuItem("Pomodoro Timer v1.3.0", "Open the website in browser")
 	mWeb.Click(func() {
 		openBrowser("https://github.com/lutischan-ferenc/pomodoro-timer")
 	})
@@ -320,6 +322,9 @@ func onReady() {
 		handleTimerClick(time.Duration(settings.ShortBreakDuration) * time.Minute)
 		isInPomodoro = false
 	})
+
+	addAutoStartMenuOnWin()
+
 	systray.AddSeparator()
 	mSettings := systray.AddMenuItem("Settings", "Configure timers")
 	mSettings.Click(func() {
@@ -502,6 +507,107 @@ func openBrowser(url string) {
 	if err != nil {
 		fmt.Println("Failed to open browser:", err)
 	}
+}
+
+const AUTO_START_NAME = "PomodoroTimer"
+
+func addAutoStartMenuOnWin() {
+	// Add auto-start menu item for Windows only
+	if runtime.GOOS == "windows" {
+		systray.AddSeparator()
+		mAutoStart = systray.AddMenuItemCheckbox("Start on System Startup", "Auto-start on System Startup", false)
+		// Check the current state of auto-start in the registry
+		if isAutoStartEnabled() {
+			mAutoStart.Check()
+		}
+
+		mAutoStart.Click(func() {
+			if mAutoStart.Checked() {
+				// Disable auto-start
+				if err := setAutoStart(false); err != nil {
+					fmt.Println("Failed to disable auto-start:", err)
+				} else {
+					fmt.Println("Auto-start disabled")
+					mAutoStart.Uncheck()
+				}
+			} else {
+				// Enable auto-start
+				if err := setAutoStart(true); err != nil {
+					fmt.Println("Failed to enable auto-start:", err)
+				} else {
+					fmt.Println("Auto-start enabled")
+					mAutoStart.Check()
+				}
+			}
+		})
+	}
+}
+
+// setAutoStart sets or removes the application from the Windows startup registry.
+func setAutoStart(enable bool) error {
+	if runtime.GOOS != "windows" {
+		return fmt.Errorf("auto-start is only supported on Windows")
+	}
+
+	// Get the path to the current executable
+	exePath, err := os.Executable()
+	if err != nil {
+		return fmt.Errorf("failed to get executable path: %v", err)
+	}
+
+	// Open the registry key for auto-start programs
+	key, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Run`, registry.SET_VALUE|registry.QUERY_VALUE)
+	if err != nil {
+		return fmt.Errorf("failed to open registry key: %v", err)
+	}
+	defer key.Close()
+
+	// Set or remove the auto-start entry
+	if enable {
+		if err := key.SetStringValue(AUTO_START_NAME, exePath); err != nil {
+			return fmt.Errorf("failed to set registry value: %v", err)
+		}
+	} else {
+		if err := key.DeleteValue(AUTO_START_NAME); err != nil && err != registry.ErrNotExist {
+			return fmt.Errorf("failed to delete registry value: %v", err)
+		}
+	}
+
+	return nil
+}
+
+// isAutoStartEnabled checks if the application is set to auto-start in the Windows registry.
+func isAutoStartEnabled() bool {
+	if runtime.GOOS != "windows" {
+		return false
+	}
+
+	// Get the path to the current executable
+	exePath, err := os.Executable()
+	if err != nil {
+		fmt.Println("Failed to get executable path:", err)
+		return false
+	}
+
+	// Open the registry key for auto-start programs
+	key, err := registry.OpenKey(registry.CURRENT_USER, `Software\Microsoft\Windows\CurrentVersion\Run`, registry.QUERY_VALUE)
+	if err != nil {
+		fmt.Println("Failed to open registry key:", err)
+		return false
+	}
+	defer key.Close()
+
+	// Check if the registry value exists and matches the current executable path
+	value, _, err := key.GetStringValue(AUTO_START_NAME)
+	if err != nil {
+		if err == registry.ErrNotExist {
+			return false
+		}
+		fmt.Println("Failed to read registry value:", err)
+		return false
+	}
+
+	return value == exePath
 }
 
 // numbersTtf contains the embedded font data.
