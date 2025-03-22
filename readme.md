@@ -8,6 +8,10 @@ A simple, lightweight Pomodoro timer application that runs in the system tray. B
 - Tracks completed Pomodoro sessions with visual indicators
 - Cross-platform support (Windows, macOS, Linux)
 
+# Downloads
+- [Github releases](https://github.com/lutischan-ferenc/pomodoro-timer/releases)
+- [Majorgeeks](https://www.majorgeeks.com/files/details/pomodoro_timer.html)
+
 # User Guide
 
 ## Basic Usage
@@ -26,6 +30,9 @@ A simple, lightweight Pomodoro timer application that runs in the system tray. B
 - Pomodoro Timer v1.1: Opens the GitHub repository in your default browser.
 - Start Pomodoro: Directly starts a new Pomodoro session (stops any running timer).
 - Start Break: Directly starts a short break (stops any running timer).
+- Start Long Break: Directly starts a long break (stops any running timer).
+- Start on System Startup (only on Windows)
+- Clock sound (play Clock effect on Pomodoro)
 - Settings: Opens a JSON file in your default text editor to configure timer durations.
 - Exit: Closes the application.
 
