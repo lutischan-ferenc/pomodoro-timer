@@ -104,7 +104,7 @@ You can modify the timer settings directly in this file or open it through the a
 ## Dependencies
 This project uses the following Go packages:
 - `github.com/Kodeworks/golang-image-ico`
-- `github.com/energye/systray`
+- `github.com/lutischan-ferenc/systray`
 - `github.com/hajimehoshi/oto`
 - `golang.org/x/image/font`
 - `golang.org/x/image/math/fixed`
