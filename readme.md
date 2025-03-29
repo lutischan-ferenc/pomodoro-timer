@@ -6,7 +6,7 @@ A simple, lightweight Pomodoro timer application that runs in the system tray. B
 - Audio feedback with beeps for countdown and completion
 - Configurable durations for Pomodoro, short break, and long break sessions
 - Tracks completed Pomodoro sessions with visual indicators
-- Cross-platform support (Windows, macOS, Linux)
+- Windows support
 
 # Downloads
 - [Github releases](https://github.com/lutischan-ferenc/pomodoro-timer/releases)
@@ -82,12 +82,6 @@ Access: Select "Settings" from the right-click menu.
 
 ## Building and Running
 
-### macOS & Linux
-```sh
-go build -o pomodoro-timer ./cmd/pomodoro-timer
-./pomodoro-timer
-```
-
 ### Windows
 ```sh
 go build -ldflags "-s -w -H windowsgui" -o pomodoro-timer.exe ./cmd/pomodoro-timer
@@ -96,7 +90,6 @@ pomodoro-timer.exe
 
 ## Configuration
 The application stores its settings in a JSON file located at:
-- macOS/Linux: `~/.pomodoro_settings.json`
 - Windows: `C:\Users\<YourUsername>\.pomodoro_settings.json`
 
 You can modify the timer settings directly in this file or open it through the application menu.
