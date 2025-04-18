@@ -1,3 +1,5 @@
+# Deprecated - new version at: https://github.com/lutischan-ferenc/pomodoro-timer-v2
+
 # Pomodoro Timer
 A simple, lightweight Pomodoro timer application that runs in the system tray. Built with Go, it helps you manage your work and break sessions efficiently using the Pomodoro Technique.
 
